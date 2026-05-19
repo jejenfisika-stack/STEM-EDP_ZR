@@ -103,13 +103,8 @@ function LoginPage({ onLogin, onGoRegister }) {
 
   const go = () => {
     if (!form.username || !form.pass) { setErr("Lengkapi username dan password"); return; }
-    const accs = getAccounts();
-    if (accs.length === 0) {
-      onLogin(form.username, form.role);
-      return;
-    }
     const found = findAccount(form.username, form.pass);
-    if (!found) { setErr("Username atau password salah"); return; }
+    if (!found) { setErr("Username atau password salah. Belum punya akun? Klik Daftar."); return; }
     onLogin(found.fullName, found.role);
   };
 
