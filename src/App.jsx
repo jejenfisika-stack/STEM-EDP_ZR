@@ -1,5 +1,19 @@
 import { useState, useEffect } from "react";
-import { BookOpen, Video, FileText, ClipboardList, LogOut, Upload, Bell, CheckCircle, Lightbulb, Eye, Star, Target, Zap, TrendingUp, ChevronRight, Home, BarChart2, Users, Award, X } from "lucide-react";
+import { BookOpen, Video, FileText, ClipboardList, LogOut, Upload, Bell, CheckCircle, Lightbulb, Eye, Star, Target, Zap, TrendingUp, ChevronRight, Home, BarChart2, Users, Award, X, Mail, EyeOff } from "lucide-react";
+
+// ── EMAILJS CONFIG — isi dengan data dari emailjs.com ────────────────
+const EJS = {
+  serviceId:  "service_1iala5f",
+  templateId: "template_dgbkbgw",
+  publicKey:  "kE_aeiCsxBhD0rUTX",
+};
+
+// ── ACCOUNT STORAGE (localStorage) ───────────────────────────────────
+const getAccounts = () => JSON.parse(localStorage.getItem("stem_accounts") || "[]");
+const saveAccounts = (arr) => localStorage.setItem("stem_accounts", JSON.stringify(arr));
+const findAccount = (username, password) => getAccounts().find(a => a.username === username && a.password === password);
+const emailExists = (email) => getAccounts().some(a => a.email === email);
+const usernameExists = (username) => getAccounts().some(a => a.username === username);
 
 const C = {
   bg: "#07091A", surf: "#0D1228", surf2: "#131A35", border: "#1A2448",
@@ -56,39 +70,200 @@ function StatusBadge({ status }) {
   return <span style={{ background: ok ? "#00D9BE22" : "#FFAA0022", color: ok ? "#00D9BE" : "#FFAA00", border: `1px solid ${ok ? "#00D9BE44" : "#FFAA0044"}`, borderRadius: 20, padding: "3px 12px", fontSize: 11, fontWeight: 600 }}>{ok ? "✓ Dinilai" : "⏳ Menunggu"}</span>;
 }
 
+// ── SEND EMAIL via EmailJS ────────────────────────────────────────────
+async function sendWelcomeEmail({ toEmail, toName, username, password, role }) {
+  try {
+    const res = await fetch("https://api.emailjs.com/api/v1.0/email/send", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        service_id: EJS.serviceId,
+        template_id: EJS.templateId,
+        user_id: EJS.publicKey,
+        template_params: {
+          to_email: toEmail,
+          to_name: toName,
+          username: username,
+          password: password,
+          role: role === "guru" ? "Guru" : "Siswa",
+          app_url: window.location.origin,
+        },
+      }),
+    });
+    return res.ok;
+  } catch { return false; }
+}
+
 // ── LOGIN ────────────────────────────────────────────────────────────
-function LoginPage({ onLogin }) {
-  const [form, setForm] = useState({ name: "", pass: "", role: "siswa" });
+function LoginPage({ onLogin, onGoRegister }) {
+  const [form, setForm] = useState({ username: "", pass: "", role: "siswa" });
   const [err, setErr] = useState("");
+  const [showPass, setShowPass] = useState(false);
   const s = (k, v) => setForm(f => ({ ...f, [k]: v }));
-  const go = () => { if (!form.name || !form.pass) { setErr("Lengkapi username dan password"); return; } onLogin(form.name, form.role); };
+
+  const go = () => {
+    if (!form.username || !form.pass) { setErr("Lengkapi username dan password"); return; }
+    const accs = getAccounts();
+    if (accs.length === 0) {
+      onLogin(form.username, form.role);
+      return;
+    }
+    const found = findAccount(form.username, form.pass);
+    if (!found) { setErr("Username atau password salah"); return; }
+    onLogin(found.fullName, found.role);
+  };
+
   const inp = { background: C.surf2, border: `1px solid ${C.border}`, color: C.text, borderRadius: 8, padding: "11px 14px", fontSize: 14, width: "100%", outline: "none", fontFamily: "inherit" };
   return (
     <div style={{ minHeight: "100vh", background: C.bg, display: "flex", alignItems: "center", justifyContent: "center", backgroundImage: `radial-gradient(ellipse at 20% 60%, ${C.primary}12, transparent 50%), radial-gradient(ellipse at 80% 20%, ${C.secondary}0e, transparent 45%)` }}>
-      <div style={{ background: C.surf, border: `1px solid ${C.border}`, borderRadius: 20, padding: "48px 40px", width: 400, maxWidth: "95vw", boxShadow: "0 24px 64px rgba(0,0,0,.55)" }}>
-        <div style={{ textAlign: "center", marginBottom: 32 }}>
+      <div style={{ background: C.surf, border: `1px solid ${C.border}`, borderRadius: 20, padding: "44px 40px", width: 420, maxWidth: "95vw", boxShadow: "0 24px 64px rgba(0,0,0,.55)" }}>
+        <div style={{ textAlign: "center", marginBottom: 28 }}>
           <div style={{ width: 64, height: 64, borderRadius: 18, background: "linear-gradient(135deg,#3B9EFF,#00D9BE)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 30, margin: "0 auto 16px" }}>🔬</div>
           <h1 style={{ fontFamily: "'Sora',sans-serif", fontWeight: 800, fontSize: 22, color: C.text, margin: "0 0 4px" }}>STEM EDP</h1>
           <p style={{ color: C.muted, fontSize: 13 }}>Platform Pembelajaran Engineering Design Process</p>
         </div>
+        <div style={{ marginBottom: 14 }}>
+          <label style={{ fontSize: 12, color: C.muted, display: "block", marginBottom: 6 }}>Username</label>
+          <input style={inp} value={form.username} onChange={e => s("username", e.target.value)} placeholder="Masukkan username" />
+        </div>
+        <div style={{ marginBottom: 20, position: "relative" }}>
+          <label style={{ fontSize: 12, color: C.muted, display: "block", marginBottom: 6 }}>Password</label>
+          <input style={inp} type={showPass ? "text" : "password"} value={form.pass} onChange={e => s("pass", e.target.value)} placeholder="••••••••" onKeyDown={e => e.key === "Enter" && go()} />
+          <button onClick={() => setShowPass(v => !v)} style={{ position: "absolute", right: 12, top: 34, background: "none", border: "none", cursor: "pointer", color: C.muted, padding: 0 }}>
+            {showPass ? <EyeOff size={16}/> : <Eye size={16}/>}
+          </button>
+        </div>
+        {err && <p style={{ color: C.danger, fontSize: 12, textAlign: "center", marginBottom: 14 }}>{err}</p>}
+        <button onClick={go} style={{ width: "100%", padding: 13, borderRadius: 10, border: "none", background: "linear-gradient(135deg,#3B9EFF,#00D9BE)", color: "#fff", fontWeight: 700, fontSize: 15, fontFamily: "inherit", cursor: "pointer" }}>Masuk →</button>
+        <div style={{ textAlign: "center", marginTop: 18, display: "flex", alignItems: "center", gap: 8, justifyContent: "center" }}>
+          <span style={{ fontSize: 13, color: C.muted }}>Belum punya akun?</span>
+          <button onClick={onGoRegister} style={{ fontSize: 13, color: C.primary, background: "none", border: "none", cursor: "pointer", fontWeight: 600, fontFamily: "inherit" }}>Daftar sekarang →</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── REGISTER ─────────────────────────────────────────────────────────
+function RegisterPage({ onGoLogin }) {
+  const [form, setForm] = useState({ fullName: "", username: "", email: "", password: "", confirm: "", role: "siswa", kelas: "" });
+  const [err, setErr] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [done, setDone] = useState(false);
+  const [showPass, setShowPass] = useState(false);
+  const s = (k, v) => setForm(f => ({ ...f, [k]: v }));
+  const inp = { background: C.surf2, border: `1px solid ${C.border}`, color: C.text, borderRadius: 8, padding: "11px 14px", fontSize: 14, width: "100%", outline: "none", fontFamily: "inherit" };
+
+  const submit = async () => {
+    setErr("");
+    if (!form.fullName || !form.username || !form.email || !form.password || !form.confirm)
+      return setErr("Semua kolom wajib diisi");
+    if (!form.email.includes("@"))
+      return setErr("Format email tidak valid");
+    if (form.password.length < 6)
+      return setErr("Password minimal 6 karakter");
+    if (form.password !== form.confirm)
+      return setErr("Konfirmasi password tidak cocok");
+    if (emailExists(form.email))
+      return setErr("Email sudah terdaftar, gunakan email lain");
+    if (usernameExists(form.username))
+      return setErr("Username sudah digunakan, pilih yang lain");
+
+    setLoading(true);
+    const accs = getAccounts();
+    accs.push({ fullName: form.fullName, username: form.username, email: form.email, password: form.password, role: form.role, kelas: form.kelas, registeredAt: new Date().toISOString() });
+    saveAccounts(accs);
+
+    const emailOk = await sendWelcomeEmail({ toEmail: form.email, toName: form.fullName, username: form.username, password: form.password, role: form.role });
+    setLoading(false);
+    setDone(true);
+    setTimeout(() => onGoLogin(), 4000);
+  };
+
+  if (done) return (
+    <div style={{ minHeight: "100vh", background: C.bg, display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div style={{ background: C.surf, border: `1px solid #00D9BE44`, borderRadius: 20, padding: "48px 40px", width: 420, maxWidth: "95vw", textAlign: "center" }}>
+        <div style={{ width: 72, height: 72, borderRadius: "50%", background: "#00D9BE20", border: "2px solid #00D9BE", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 20px", fontSize: 32 }}>✅</div>
+        <h2 style={{ fontFamily: "'Sora',sans-serif", fontWeight: 800, fontSize: 22, marginBottom: 10 }}>Pendaftaran Berhasil!</h2>
+        <p style={{ color: C.muted, fontSize: 14, marginBottom: 6 }}>Akun <strong style={{ color: C.text }}>{form.username}</strong> sudah dibuat.</p>
+        <p style={{ color: C.muted, fontSize: 14, marginBottom: 20 }}>Cek email <strong style={{ color: C.secondary }}>{form.email}</strong> untuk melihat detail login kamu.</p>
+        <div style={{ background: C.surf2, borderRadius: 12, padding: "14px 20px", marginBottom: 20, textAlign: "left" }}>
+          <div style={{ fontSize: 12, color: C.muted, marginBottom: 8 }}>Detail akun kamu:</div>
+          <div style={{ fontSize: 13, marginBottom: 4 }}>👤 Username: <strong style={{ color: C.primary }}>{form.username}</strong></div>
+          <div style={{ fontSize: 13, marginBottom: 4 }}>🔒 Password: <strong style={{ color: C.primary }}>{form.password}</strong></div>
+          <div style={{ fontSize: 13 }}>🎭 Peran: <strong style={{ color: C.primary }}>{form.role === "guru" ? "Guru" : "Siswa"}</strong></div>
+        </div>
+        <p style={{ fontSize: 12, color: C.muted }}>Mengalihkan ke halaman login...</p>
+      </div>
+    </div>
+  );
+
+  return (
+    <div style={{ minHeight: "100vh", background: C.bg, display: "flex", alignItems: "center", justifyContent: "center", backgroundImage: `radial-gradient(ellipse at 80% 20%, ${C.primary}12, transparent 50%)`, padding: "24px 0" }}>
+      <div style={{ background: C.surf, border: `1px solid ${C.border}`, borderRadius: 20, padding: "40px", width: 460, maxWidth: "95vw", boxShadow: "0 24px 64px rgba(0,0,0,.55)" }}>
+        <button onClick={onGoLogin} style={{ background: "none", border: "none", color: C.muted, cursor: "pointer", fontSize: 13, marginBottom: 20, fontFamily: "inherit", display: "flex", alignItems: "center", gap: 6 }}>← Kembali ke Login</button>
+        <div style={{ textAlign: "center", marginBottom: 28 }}>
+          <div style={{ width: 56, height: 56, borderRadius: 16, background: "linear-gradient(135deg,#3B9EFF,#00D9BE)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 26, margin: "0 auto 14px" }}>🔬</div>
+          <h1 style={{ fontFamily: "'Sora',sans-serif", fontWeight: 800, fontSize: 20, color: C.text, margin: "0 0 4px" }}>Buat Akun Baru</h1>
+          <p style={{ color: C.muted, fontSize: 13 }}>Daftarkan dirimu untuk mengakses STEM EDP</p>
+        </div>
+
         <div style={{ display: "flex", background: C.surf2, borderRadius: 10, padding: 4, marginBottom: 20, gap: 4 }}>
           {["siswa", "guru"].map(r => (
             <button key={r} onClick={() => s("role", r)} style={{ flex: 1, padding: "8px 0", borderRadius: 8, border: "none", cursor: "pointer", background: form.role === r ? "linear-gradient(135deg,#3B9EFF,#00D9BE)" : "transparent", color: form.role === r ? "#fff" : C.muted, fontWeight: 600, fontSize: 13, fontFamily: "inherit", transition: "all .2s" }}>
-              {r === "siswa" ? "👦 Siswa" : "👩‍🏫 Guru"}
+              {r === "siswa" ? "👦 Daftar sebagai Siswa" : "👩‍🏫 Daftar sebagai Guru"}
             </button>
           ))}
         </div>
-        <div style={{ marginBottom: 14 }}>
-          <label style={{ fontSize: 12, color: C.muted, display: "block", marginBottom: 6 }}>Username</label>
-          <input style={inp} value={form.name} onChange={e => s("name", e.target.value)} placeholder="Masukkan username" />
+
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
+          <div>
+            <label style={{ fontSize: 12, color: C.muted, display: "block", marginBottom: 6 }}>Nama Lengkap *</label>
+            <input style={inp} value={form.fullName} onChange={e => s("fullName", e.target.value)} placeholder="Nama lengkap" />
+          </div>
+          <div>
+            <label style={{ fontSize: 12, color: C.muted, display: "block", marginBottom: 6 }}>{form.role === "siswa" ? "Kelas" : "Mata Pelajaran"}</label>
+            <input style={inp} value={form.kelas} onChange={e => s("kelas", e.target.value)} placeholder={form.role === "siswa" ? "Contoh: 7A" : "Contoh: IPA"} />
+          </div>
         </div>
-        <div style={{ marginBottom: 20 }}>
-          <label style={{ fontSize: 12, color: C.muted, display: "block", marginBottom: 6 }}>Password</label>
-          <input style={inp} type="password" value={form.pass} onChange={e => s("pass", e.target.value)} placeholder="••••••••" onKeyDown={e => e.key === "Enter" && go()} />
+
+        <div style={{ marginBottom: 12 }}>
+          <label style={{ fontSize: 12, color: C.muted, display: "block", marginBottom: 6 }}>Username *</label>
+          <input style={inp} value={form.username} onChange={e => s("username", e.target.value.replace(/\s/g, ""))} placeholder="Buat username unik (tanpa spasi)" />
         </div>
-        {err && <p style={{ color: C.danger, fontSize: 12, textAlign: "center", marginBottom: 14 }}>{err}</p>}
-        <button onClick={go} style={{ width: "100%", padding: 13, borderRadius: 10, border: "none", background: "linear-gradient(135deg,#3B9EFF,#00D9BE)", color: "#fff", fontWeight: 700, fontSize: 15, fontFamily: "inherit", cursor: "pointer", boxShadow: "0 4px 20px rgba(59,158,255,.3)" }}>Masuk →</button>
-        <p style={{ textAlign: "center", marginTop: 14, fontSize: 12, color: C.muted }}>Demo: isi nama & password apa saja</p>
+
+        <div style={{ marginBottom: 12 }}>
+          <label style={{ fontSize: 12, color: C.muted, display: "block", marginBottom: 6 }}>Email *</label>
+          <div style={{ position: "relative" }}>
+            <input style={{ ...inp, paddingLeft: 38 }} type="email" value={form.email} onChange={e => s("email", e.target.value)} placeholder="email@kamu.com" />
+            <Mail size={14} color={C.muted} style={{ position: "absolute", left: 12, top: 13 }} />
+          </div>
+          <p style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>📧 Username & password akan dikirim ke email ini</p>
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 20 }}>
+          <div>
+            <label style={{ fontSize: 12, color: C.muted, display: "block", marginBottom: 6 }}>Password * (min. 6 karakter)</label>
+            <div style={{ position: "relative" }}>
+              <input style={inp} type={showPass ? "text" : "password"} value={form.password} onChange={e => s("password", e.target.value)} placeholder="••••••••" />
+              <button onClick={() => setShowPass(v => !v)} style={{ position: "absolute", right: 10, top: 11, background: "none", border: "none", cursor: "pointer", color: C.muted, padding: 0 }}>{showPass ? <EyeOff size={14}/> : <Eye size={14}/>}</button>
+            </div>
+          </div>
+          <div>
+            <label style={{ fontSize: 12, color: C.muted, display: "block", marginBottom: 6 }}>Konfirmasi Password *</label>
+            <input style={{ ...inp, borderColor: form.confirm && form.confirm !== form.password ? C.danger : C.border }} type="password" value={form.confirm} onChange={e => s("confirm", e.target.value)} placeholder="••••••••" />
+          </div>
+        </div>
+
+        {err && <div style={{ background: C.danger + "18", border: `1px solid ${C.danger}44`, borderRadius: 8, padding: "10px 14px", marginBottom: 16, fontSize: 13, color: C.danger }}>⚠ {err}</div>}
+
+        <button onClick={submit} disabled={loading} style={{ width: "100%", padding: 13, borderRadius: 10, border: "none", background: loading ? C.surf2 : "linear-gradient(135deg,#3B9EFF,#00D9BE)", color: loading ? C.muted : "#fff", fontWeight: 700, fontSize: 15, fontFamily: "inherit", cursor: loading ? "not-allowed" : "pointer" }}>
+          {loading ? "⏳ Mendaftarkan & mengirim email..." : "Daftar & Kirim Email →"}
+        </button>
+
+        <div style={{ marginTop: 16, background: C.surf2, borderRadius: 10, padding: "12px 14px" }}>
+          <p style={{ fontSize: 12, color: C.muted, margin: 0 }}>🔒 Datamu aman. Email notifikasi berisi username & password yang kamu buat, dikirim otomatis saat pendaftaran berhasil.</p>
+        </div>
       </div>
     </div>
   );
@@ -546,6 +721,8 @@ function AppShell({ user, onLogout }) {
 // ── ROOT ─────────────────────────────────────────────────────────────
 export default function App() {
   const [user, setUser] = useState(null);
+  const [page, setPage] = useState("login"); // "login" | "register"
+
   useEffect(() => {
     const link = document.createElement("link");
     link.rel = "stylesheet";
@@ -555,6 +732,8 @@ export default function App() {
     style.textContent = `*{box-sizing:border-box;margin:0;padding:0} ::-webkit-scrollbar{width:5px} ::-webkit-scrollbar-track{background:${C.surf}} ::-webkit-scrollbar-thumb{background:${C.border};border-radius:3px}`;
     document.head.appendChild(style);
   }, []);
-  if (!user) return <LoginPage onLogin={(name, role) => setUser({ name, role })} />;
-  return <AppShell user={user} onLogout={() => setUser(null)} />;
+
+  if (user) return <AppShell user={user} onLogout={() => setUser(null)} />;
+  if (page === "register") return <RegisterPage onGoLogin={() => setPage("login")} />;
+  return <LoginPage onLogin={(name, role) => setUser({ name, role })} onGoRegister={() => setPage("register")} />;
 }
