@@ -70,29 +70,38 @@ function StatusBadge({ status }) {
   return <span style={{ background: ok ? "#00D9BE22" : "#FFAA0022", color: ok ? "#00D9BE" : "#FFAA00", border: `1px solid ${ok ? "#00D9BE44" : "#FFAA0044"}`, borderRadius: 20, padding: "3px 12px", fontSize: 11, fontWeight: 600 }}>{ok ? "✓ Dinilai" : "⏳ Menunggu"}</span>;
 }
 
-// ── SEND EMAIL via EmailJS ────────────────────────────────────────────
+// ── LOAD EMAILJS SDK ─────────────────────────────────────────────────
+function loadEmailJS() {
+  return new Promise((resolve) => {
+    if (window.emailjs) { resolve(); return; }
+    const script = document.createElement("script");
+    script.src = "https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js";
+    script.onload = () => { window.emailjs.init(EJS.publicKey); resolve(); };
+    document.head.appendChild(script);
+  });
+}
+
+// ── SEND EMAIL via EmailJS SDK ────────────────────────────────────────
 async function sendWelcomeEmail({ toEmail, toName, username, password, role }) {
   try {
-    const res = await fetch("https://api.emailjs.com/api/v1.0/email/send", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        service_id: EJS.serviceId,
-        template_id: EJS.templateId,
-        user_id: EJS.publicKey,
-        template_params: {
-          to_email: toEmail,
-          to_name: toName,
-          username: username,
-          password: password,
-          role: role === "guru" ? "Guru" : "Siswa",
-          app_url: window.location.origin,
-        },
-      }),
+    await loadEmailJS();
+    await window.emailjs.send(EJS.serviceId, EJS.templateId, {
+      to_email:  toEmail,
+      to_name:   toName,
+      username:  username,
+      password:  password,
+      role:      role === "guru" ? "Guru" : "Siswa",
+      app_url:   window.location.origin,
+      email:     toEmail,
+      name:      toName,
     });
-    return res.ok;
-  } catch { return false; }
+    return true;
+  } catch (err) {
+    console.error("EmailJS error:", err);
+    return false;
+  }
 }
+
 
 // ── LOGIN ────────────────────────────────────────────────────────────
 function LoginPage({ onLogin, onGoRegister }) {
